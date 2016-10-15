@@ -7,18 +7,15 @@ var PORT = 3002;
 
 var API_VERSION = '0.0.1';
 
+// ### STATIC ###
+
+function SendError(_error, _req, _res)
+{
+	_res.send(JSON.stringify({error: _error}));
+}
+
 // ### DATABASE ###
-MongoClient.connect(process.env.MONGODB_URI, function(err, db) {
-  if (err) {
-    throw err;
-  }
-  db.collection('users').find().toArray(function(err, result) {
-    if (err) {
-      throw err;
-    }
-    console.log(result);
-  });
-});
+// Should I keep a single connection?!
 
 
 // ### SERVER ###
@@ -33,18 +30,34 @@ app.route('/user/:user_id')
 
 	// get id
 	var userId = req.params.user_id;
-	if (!userId)
+	if (userId == null)
 	{
-		res.send(JSON.stringify(data));
+		SendError({content: "No user id."}, req, res);
+		return;
 	}
 
 	data.id = userId;
 
 	// get info from database
-	data.lists = [1, 2, 5];
+	MongoClient.connect(process.env.MONGODB_URI, function(err, db) {
+		if (err)
+		{
+	    	SendError(err, req, res);
+	    	return;
+	  	}
 
-	// send info to client
-	res.send(JSON.stringify(data));
+	  	var query = {id: userId};
+	  	db.collection('users').find(query).toArray(function(err, result) {
+	    	if (err == null && result.length == 1)
+	    	{
+	    		res.send(JSON.stringify(result[0]));
+		    }
+		    else
+		    {
+		    	SendError(err, req, res);
+		    }
+  		});
+	});
 });
 
 app.listen(PORT, function () {
