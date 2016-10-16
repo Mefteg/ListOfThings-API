@@ -18,6 +18,7 @@
   "homepage": "https://github.com/Mefteg/ListOfThings-API#readme",
   "dependencies": {
     "express": "^4.14.0",
+    "body-parser": "1.15",
     "mongodb": "2.2"
   }
 }
