@@ -4,6 +4,7 @@ var MongoClient = require('mongodb').MongoClient;
 var MongoObjectID = require('mongodb').ObjectID;
 var express = require('express');
 var bodyParser = require('body-parser');
+var https = require('https');
 
 var PORT = 3002;
 
@@ -14,6 +15,59 @@ var DATABASE;
 var APP;
 
 // ### STATIC ###
+
+// _callback: function(error, data)
+function VerifyToken(_token, _callback)
+{
+	var address = "https://www.googleapis.com/oauth2/v3/tokeninfo";
+	address += "?id_token=" + _token;
+
+	https.get(address, (res) => {
+
+	  console.log('statusCode:', res.statusCode);
+		console.log('headers:', res.headers);
+
+		var rawData = "";
+		res.on('data', (chunk) => {
+			rawData += chunk;
+		});
+	  res.on('end', () => {
+			var data = JSON.parse(rawData);
+			console.log(data);
+			if (res.statusCode != 200)
+			{
+				_callback("Invalid Status Code (" + res.statusCode + "). Expected (200).", null);
+			}
+			else if (data.aud != process.env.GOOGLE_CLIENT_ID)
+			{
+				_callback("Google Client ID isn't correct.", null);
+			}
+			else
+			{
+				_callback(null, null);
+			}
+	  });
+
+	}).on('error', (e) => {
+	  _callback(e, null);
+	});
+}
+
+// _callback: function(error, data)
+function GetUser(_id, _callback)
+{
+	var query = {id: _id};
+	DATABASE.collection('users').find(query).toArray(function(err, result) {
+		if (err == null && result.length == 1)
+		{
+			_callback(null, result[0]);
+		}
+		else
+		{
+			_callback(null, null);
+		}
+	});
+}
 
 function CreateServer()
 {
@@ -27,6 +81,12 @@ function CreateServer()
 	// ## USER ##
 	APP.route('/user/:user_id')
 	.get(function (req, res) {
+		// check database
+		if (DATABASE == null)
+		{
+			SendError(err, req, res);
+		}
+
 		// get id
 		var userId = req.params.user_id;
 		if (userId == null)
@@ -35,24 +95,34 @@ function CreateServer()
 			return;
 		}
 
-		// get info from database
-		if (DATABASE == null)
+		// get token
+		var token = req.query.token;
+		if (token == null)
 		{
-			SendError(err, req, res);
+			SendError({content: "No token."}, req, res);
+			return;
 		}
 		else
 		{
-		  	var query = {id: userId};
-		  	DATABASE.collection('users').find(query).toArray(function(err, result) {
-		    	if (err == null && result.length == 1)
-		    	{
-		    		res.send(JSON.stringify(result[0]));
-			    }
-			    else
-			    {
-			    	SendError(err, req, res);
-			    }
-	  		});
+			VerifyToken(token, function(_error, _data) {
+				if (_error)
+				{
+					SendError(_error, req, res);
+				}
+				else
+				{
+					GetUser(userId, function(_error, _data) {
+						if (_error)
+						{
+							SendError(_error, req, res);
+						}
+						else
+						{
+							res.send(JSON.stringify(_data));
+						}
+					});
+				}
+			});
 		}
 	});
 
@@ -234,10 +304,3 @@ CreateServer();
 // ### DATABASE ###
 
 ConnectDatabase();
-
-
-
-
-
-
-
