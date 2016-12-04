@@ -4,7 +4,10 @@ var MongoClient = require('mongodb').MongoClient;
 var MongoObjectID = require('mongodb').ObjectID;
 var express = require('express');
 var bodyParser = require('body-parser');
-var https = require('https');
+
+var utils = require('./utils');
+
+var User = require('./entities/user');
 
 var PORT = 3002;
 
@@ -14,60 +17,9 @@ var DATABASE;
 
 var APP;
 
+var USER;
+
 // ### STATIC ###
-
-// _callback: function(error, data)
-function VerifyToken(_token, _callback)
-{
-	var address = "https://www.googleapis.com/oauth2/v3/tokeninfo";
-	address += "?id_token=" + _token;
-
-	https.get(address, (res) => {
-
-	  console.log('statusCode:', res.statusCode);
-		console.log('headers:', res.headers);
-
-		var rawData = "";
-		res.on('data', (chunk) => {
-			rawData += chunk;
-		});
-	  res.on('end', () => {
-			var data = JSON.parse(rawData);
-			console.log(data);
-			if (res.statusCode != 200)
-			{
-				_callback("Invalid Status Code (" + res.statusCode + "). Expected (200).", null);
-			}
-			else if (data.aud != process.env.GOOGLE_CLIENT_ID)
-			{
-				_callback("Google Client ID isn't correct.", null);
-			}
-			else
-			{
-				_callback(null, null);
-			}
-	  });
-
-	}).on('error', (e) => {
-	  _callback(e, null);
-	});
-}
-
-// _callback: function(error, data)
-function GetUser(_id, _callback)
-{
-	var query = {id: _id};
-	DATABASE.collection('users').find(query).toArray(function(err, result) {
-		if (err == null && result.length == 1)
-		{
-			_callback(null, result[0]);
-		}
-		else
-		{
-			_callback(null, null);
-		}
-	});
-}
 
 function CreateServer()
 {
@@ -79,68 +31,27 @@ function CreateServer()
 
 
 	// ## USER ##
-	APP.route('/user/:user_id')
-	.get(function (req, res) {
-		// check database
-		if (DATABASE == null)
-		{
-			SendError(err, req, res);
-		}
-
-		// get id
-		var userId = req.params.user_id;
-		if (userId == null)
-		{
-			SendError({content: "No user id."}, req, res);
-			return;
-		}
-
-		// get token
-		var token = req.query.token;
-		if (token == null)
-		{
-			SendError({content: "No token."}, req, res);
-			return;
-		}
-		else
-		{
-			VerifyToken(token, function(_error, _data) {
-				if (_error)
-				{
-					SendError(_error, req, res);
-				}
-				else
-				{
-					GetUser(userId, function(_error, _data) {
-						if (_error)
-						{
-							SendError(_error, req, res);
-						}
-						else
-						{
-							res.send(JSON.stringify(_data));
-						}
-					});
-				}
-			});
-		}
+	USER = new User(DATABASE);
+	APP.route('/user/:user_id').
+	post(function(req, res) {
+		USER.get(req, res);
 	});
 
 	// ## LIST ##
 	APP.route('/list/:list_id')
-	.get(function (req, res) {
+	.post(function (req, res) { // get list
 		// get id
 		var listId = req.params.list_id;
 		if (listId == null)
 		{
-			SendError({content: "No list id."}, req, res);
+			utils.SendError({content: "No list id."}, req, res);
 			return;
 		}
 
 		// get info from database
 		if (DATABASE == null)
 		{
-			SendError(err, req, res);
+			utils.SendError(err, req, res);
 		}
 		else
 		{
@@ -152,17 +63,17 @@ function CreateServer()
 			    }
 			    else
 			    {
-			    	SendError(err, req, res);
+			    	utils.SendError(err, req, res);
 			    }
 	  		});
 		}
 	})
-	.put(function (req, res) {
+	.put(function (req, res) { // update list
 		// get id
 		var listId = req.params.list_id;
 		if (listId == null)
 		{
-			SendError({content: "No list id."}, req, res);
+			utils.SendError({content: "No list id."}, req, res);
 			return;
 		}
 
@@ -179,14 +90,14 @@ function CreateServer()
 		// we need at least one data
 		if (listName == null && listItem == null)
 		{
-			SendError({content: "No name or item."}, req, res);
+			utils.SendError({content: "No name or item."}, req, res);
 			return;
 		}
 
 		// get info from database
 		if (DATABASE == null)
 		{
-			SendError(err, req, res);
+			utils.SendError(err, req, res);
 		}
 		else
 		{
@@ -207,19 +118,19 @@ function CreateServer()
 			    }
 			    else
 			    {
-			    	SendError(err, req, res);
+			    	utils.SendError(err, req, res);
 			    }
 	  		});
 		}
 	});
 
 	APP.route('/list')
-	.post(function (req, res) {
+	.post(function (req, res) { // create a new list for the user
 		// get user id
 		var userId = req.body.user_id;
 		if (userId == null)
 		{
-			SendError({content: "No user id."}, req, res);
+			utils.SendError({content: "No user id."}, req, res);
 			return;
 		}
 
@@ -227,14 +138,14 @@ function CreateServer()
 		var listName = req.body.name;
 		if (listName == null)
 		{
-			SendError({content: "No list name."}, req, res);
+			utils.SendError({content: "No list name."}, req, res);
 			return;
 		}
 
 		// get info from database
 		if (DATABASE == null)
 		{
-			SendError({content: "No databse connection."}, req, res);
+			utils.SendError({content: "No databse connection."}, req, res);
 		}
 		else
 		{
@@ -257,31 +168,16 @@ function CreateServer()
 	  					}
 	  					else
 	  					{
-			    			SendError(err, req, res);
+			    			utils.SendError(err, req, res);
 	  					}
 		    		});
 			    }
 			    else
 			    {
-			    	SendError(err, req, res);
+			    	utils.SendError(err, req, res);
 			    }
 	  		});
 		}
-	});
-}
-
-function ConnectDatabase()
-{
-	MongoClient.connect(process.env.MONGODB_URI, function(err, db) {
-		if (err)
-		{
-	    	console.log(err);
-	    	return;
-	  	}
-
-	  	DATABASE = db;
-
-	  	RunServer();
 	});
 }
 
@@ -292,15 +188,30 @@ function RunServer()
 	});
 }
 
-function SendError(_error, _req, _res)
+function ConnectDatabase(_callback)
 {
-	_res.send(JSON.stringify({error: _error}));
+	MongoClient.connect(process.env.MONGODB_URI, function(err, db) {
+		if (err)
+		{
+			console.log(err);
+		}
+
+		DATABASE = db;
+
+		_callback(err, null);
+	});
 }
-
-// ### SERVER ###
-
-CreateServer();
 
 // ### DATABASE ###
 
-ConnectDatabase();
+ConnectDatabase(function(err, data) {
+	if (err)
+	{
+		console.log(_err);
+	}
+	else
+	{
+		CreateServer();
+		RunServer();
+	}
+});
