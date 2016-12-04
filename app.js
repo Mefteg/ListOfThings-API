@@ -8,6 +8,7 @@ var bodyParser = require('body-parser');
 var utils = require('./utils');
 
 var User = require('./entities/user');
+var List = require('./entities/list');
 
 var PORT = 3002;
 
@@ -17,7 +18,9 @@ var DATABASE;
 
 var APP;
 
+// Entities
 var USER;
+var LIST;
 
 // ### STATIC ###
 
@@ -38,146 +41,17 @@ function CreateServer()
 	});
 
 	// ## LIST ##
-	APP.route('/list/:list_id')
-	.post(function (req, res) { // get list
-		// get id
-		var listId = req.params.list_id;
-		if (listId == null)
-		{
-			utils.SendError({content: "No list id."}, req, res);
-			return;
-		}
-
-		// get info from database
-		if (DATABASE == null)
-		{
-			utils.SendError(err, req, res);
-		}
-		else
-		{
-		  	var query = {"_id": new MongoObjectID(listId)};
-		  	DATABASE.collection('lists').find(query).toArray(function(err, result) {
-		    	if (err == null && result.length == 1)
-		    	{
-		    		res.send(JSON.stringify(result[0]));
-			    }
-			    else
-			    {
-			    	utils.SendError(err, req, res);
-			    }
-	  		});
-		}
-	})
-	.put(function (req, res) { // update list
-		// get id
-		var listId = req.params.list_id;
-		if (listId == null)
-		{
-			utils.SendError({content: "No list id."}, req, res);
-			return;
-		}
-
-		// get name
-		var listName = req.body.name;
-
-		// get new item
-		var listItem = null;
-		if (req.body.item != null)
-		{
-			listItem = JSON.parse(req.body.item);
-		}
-
-		// we need at least one data
-		if (listName == null && listItem == null)
-		{
-			utils.SendError({content: "No name or item."}, req, res);
-			return;
-		}
-
-		// get info from database
-		if (DATABASE == null)
-		{
-			utils.SendError(err, req, res);
-		}
-		else
-		{
-		  	var filter = {"_id": new MongoObjectID(listId)};
-		  	var update = {};
-		  	if (listName != null)
-		  	{
-		  		update = {"$set": {"name": listName}};
-		  	}
-		  	else
-		  	{
-		  		update = {"$push": {"items": listItem}};
-		  	}
-		  	DATABASE.collection('lists').update(filter, update, function(err, data) {
-		    	if (err == null)
-		    	{
-		    		res.send(JSON.stringify({"ok": data.result.ok, "data": data}));
-			    }
-			    else
-			    {
-			    	utils.SendError(err, req, res);
-			    }
-	  		});
-		}
-	});
-
+	LIST = new List(DATABASE);
 	APP.route('/list')
 	.post(function (req, res) { // create a new list for the user
-		// get user id
-		var userId = req.body.user_id;
-		if (userId == null)
-		{
-			utils.SendError({content: "No user id."}, req, res);
-			return;
-		}
-
-		// get name
-		var listName = req.body.name;
-		if (listName == null)
-		{
-			utils.SendError({content: "No list name."}, req, res);
-			return;
-		}
-
-		// get info from database
-		if (DATABASE == null)
-		{
-			utils.SendError({content: "No databse connection."}, req, res);
-		}
-		else
-		{
-		  	var query = {"name": listName};
-		  	// insert new list
-		  	DATABASE.collection('lists').insertOne(query, function(err, data) {
-		    	if (err == null && data.result != null)
-		    	{
-		    		var listId = data.insertedId;
-		    		console.log(data);
-		    		var filter = {"id": userId};
-		    		var update = {"$push": {"lists": listId}};
-		    		console.log(filter);
-		    		console.log(update);
-		    		// update user's info
-	  				DATABASE.collection('users').updateOne(filter, update, function(err, data) {
-	  					if (err == null)
-	  					{
-		    				res.send(JSON.stringify({"ok": data.result.ok, "data": data}));
-	  					}
-	  					else
-	  					{
-			    			utils.SendError(err, req, res);
-	  					}
-		    		});
-			    }
-			    else
-			    {
-			    	utils.SendError(err, req, res);
-			    }
-	  		});
-		}
+		LIST.create(req, res);
+	});
+	APP.route('/list/:list_id')
+	.post(function (req, res) { // get list
+		LIST.get(req, res);
+	})
+	.put(function (req, res) { // update list
+		LIST.update(req, res);
 	});
 }
 

@@ -26,28 +26,27 @@ class User
   		utils.SendError({content: "No token."}, _req, _res);
   		return;
   	}
-  	else
-  	{
-  		utils.VerifyToken(token, function(_error, _data) {
-  			if (_error)
-  			{
-  				utils.SendError(_error, _req, _res);
-  			}
-  			else
-  			{
-  				GetUserFromDatabase(DATABASE, userId, function(_error, _data) {
-  					if (_error)
-  					{
-  						utils.SendError(_error, _req, _res);
-  					}
-  					else
-  					{
-  						_res.send(JSON.stringify(_data));
-  					}
-  				});
-  			}
-  		});
-  	}
+    
+    var instance = this;
+		utils.VerifyToken(token, function(_error, _data) {
+			if (_error)
+			{
+				utils.SendError(_error, _req, _res);
+			}
+			else
+			{
+				GetUserFromDatabase(instance.db, userId, function(_error, _data) {
+					if (_error)
+					{
+						utils.SendError(_error, _req, _res);
+					}
+					else
+					{
+						_res.send(JSON.stringify(_data));
+					}
+				});
+			}
+		});
   }
 }
 
@@ -63,7 +62,7 @@ function GetUserFromDatabase(_database, _id, _callback)
 		}
 		else
 		{
-			_callback(null, null);
+			_callback(err, null);
 		}
 	});
 }
